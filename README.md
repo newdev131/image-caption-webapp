@@ -25,7 +25,7 @@ Upload any image and get AI-generated captions.
 - JavaScript
 
 ## API Used
-This app connects to: https://arfanaeem-image-caption-api.hf.spac
+This app connects to: https://arfanaeem-image-caption-api.hf.space
 
 ## Author
 Arfa Naeem | Machine Learning Project | March 2026
