@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Caption Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        #preview {
+            max-width: 100%;
+            max-height: 300px;
+            margin: 20px 0;
+            display: none;
+            border-radius: 10px;
+        }
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .control-group {
+            flex: 1;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select, input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.6;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        .caption-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        .copy-btn {
+            margin-top: 10px;
+            padding: 5px 15px;
+            font-size: 12px;
+            width: auto;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ AI Caption Generator ✨</h1>
+        <p style="text-align: center; color: #666;">Upload any photo, get beautiful captions!</p>
+
+        <div class="upload-area" id="uploadArea">
+            📸 Click or drag image here
+        </div>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+        <img id="preview">
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Number of Captions (1-5)</label>
+                <input type="number" id="numCaptions" min="1" max="5" value="3">
+            </div>
+            <div class="control-group">
+                <label>Caption Style</label>
+                <select id="style">
+                    <option value="creative">Creative</option>
+                    <option value="poetic">Poetic</option>
+                    <option value="cinematic">Cinematic</option>
+                    <option value="funny">Funny</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="generateBtn">Generate Captions</button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>AI is analyzing your image...</p>
+        </div>
+
+        <div class="results" id="results">
+            <h3>Your Captions</h3>
+            <div id="captionsList"></div>
+        </div>
+
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        const API_URL = "https://YOUR_USERNAME-image-caption-api.hf.space/caption";
+
+        let selectedFile = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const generateBtn = document.getElementById('generateBtn');
+        const loading = document.getElementById('loading');
+        const resultsDiv = document.getElementById('results');
+        const captionsList = document.getElementById('captionsList');
+        const errorDiv = document.getElementById('error');
+        const numCaptionsInput = document.getElementById('numCaptions');
+        const styleSelect = document.getElementById('style');
+
+        uploadArea.onclick = () => fileInput.click();
+
+        uploadArea.ondragover = (e) => {
+            e.preventDefault();
+            uploadArea.style.background = '#f0f0ff';
+        };
+
+        uploadArea.ondragleave = () => {
+            uploadArea.style.background = 'white';
+        };
+
+        uploadArea.ondrop = (e) => {
+            e.preventDefault();
+            uploadArea.style.background = 'white';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        };
+
+        fileInput.onchange = (e) => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+        };
+
+        function handleFile(file) {
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                resultsDiv.style.display = 'none';
+                errorDiv.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        generateBtn.onclick = async () => {
+            if (!selectedFile) {
+                errorDiv.innerText = 'Please select an image first';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            loading.style.display = 'block';
+            generateBtn.disabled = true;
+            errorDiv.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('num_captions', numCaptionsInput.value);
+            formData.append('style', styleSelect.value);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    captionsList.innerHTML = '';
+                    data.captions.forEach((caption, index) => {
+                        const card = document.createElement('div');
+                        card.className = 'caption-card';
+                        card.innerHTML = `
+                            <strong>Caption ${index + 1}</strong>
+                            <p style="margin-top: 10px; font-size: 16px;">${caption}</p>
+                            <button class="copy-btn" onclick="copyToClipboard('${caption.replace(/'/g, "\'")}')">Copy</button>
+                        `;
+                        captionsList.appendChild(card);
+                    });
+                    resultsDiv.style.display = 'block';
+                } else {
+                    errorDiv.innerText = data.error || 'Error generating captions';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.innerText = 'Error: API not responding. Make sure Hugging Face Space is running.';
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                generateBtn.disabled = false;
+            }
+        };
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('Caption copied! ✨');
+        }
+    </script>
+</body>
+</html>
